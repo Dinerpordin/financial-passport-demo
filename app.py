@@ -256,8 +256,18 @@ def score_tier(score, lang='en'):
 
 # Export data as JSON
 def export_json(results):
-    return BytesIO(json.dumps(results, ensure_ascii=False, indent=2).encode('utf-8'))
+    # Convert all datetime in transaction records to str (ISO format)
+    clean_results = results.copy()
+    tx_list = clean_results.get('tx', [])
 
+    for tx in tx_list:
+        # If 'date' is a pandas Timestamp or datetime object, convert to ISO string
+        if hasattr(tx['date'], 'isoformat'):
+            tx['date'] = tx['date'].isoformat()
+        else:
+            tx['date'] = str(tx['date'])
+
+    return BytesIO(json.dumps(clean_results, ensure_ascii=False, indent=2).encode('utf-8'))
 # Export PDF (placeholder)
 def export_pdf():
     pdf = BytesIO()
@@ -322,6 +332,35 @@ if results:
     color = 'green' if score >= 90 else 'orange' if score >= 70 else 'yellow' if score >= 50 else 'red'
     st.markdown(f"<h2 style='color:{color};'>{score}</h2>", unsafe_allow_html=True)
     st.caption(f"{t('risk_tier')}: {score_tier(score, st.session_state.language)}")
+
+        # Half-circle gauge chart for score visualization
+    gauge_fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        title={'text': t('credit_score'), 'font': {'size': 20}},
+        number={'font': {'size': 40}},
+        gauge={
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'bar': {'color': color},
+            'bgcolor': "white",
+            'steps': [
+                {'range': [0, 50], 'color': '#ffebee'},
+                {'range': [50, 70], 'color': '#fff9c4'},
+                {'range': [70, 90], 'color': '#ffe0b2'},
+                {'range': [90, 100], 'color': '#c8e6c9'}
+            ],
+            'threshold': {
+                'line': {'color': "black", 'width': 4},
+                'thickness': 0.75,
+                'value': score,
+            }
+        }
+    ))
+    gauge_fig.update_layout(
+        margin=dict(l=20, r=20, t=40, b=0),
+        height=300
+    )
+    st.plotly_chart(gauge_fig, use_container_width=True)
 
     # PART 3 starts here...
     # Score Breakdown Chart
