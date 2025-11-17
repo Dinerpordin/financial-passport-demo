@@ -275,14 +275,6 @@ def export_pdf():
     pdf.seek(0)
     return pdf
 
-# User scenario selector
-EXAMPLES = [
-    {'label': '01716888888', 'desc': 'Excellent', 'score': 95},
-    {'label': '01819666666', 'desc': 'Good', 'score': 77},
-    {'label': '01922777777', 'desc': 'Fair', 'score': 64},
-    {'label': '01687444444', 'desc': 'Poor', 'score': 38},
-]
-
 # Sidebar: Language & Demo mode toggle
 with st.sidebar:
     st.selectbox(t('language'), options=['en', 'bn'], index=0 if st.session_state.language == 'en' else 1, key='language')
@@ -291,12 +283,6 @@ with st.sidebar:
 # Main UI
 st.markdown(f"<div class='main-header'><h2>{t('title')}</h2><h4>{t('subtitle')}</h4></div>", unsafe_allow_html=True)
 st.markdown(f"<div class='info-box'>{t('description')}</div>", unsafe_allow_html=True)
-
-# Example numbers
-with st.expander(t('sample_numbers'), expanded=True):
-    for ex in EXAMPLES:
-        if st.button(f"{ex['label']} ({t(ex['desc'].lower() + '_score')})", key=ex['label']):
-            st.session_state['phone'] = ex['label']
 
 # Input
 phone = st.text_input(t('enter_mobile'), value=st.session_state.get('phone', ''), max_chars=11, key='phone')
