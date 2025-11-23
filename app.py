@@ -205,6 +205,59 @@ def create_transaction_heatmap(df):
     fig.update_layout(title="Transaction Activity Heatmap", xaxis_title="Date", yaxis_title="", height=280, margin=dict(l=10, r=10, t=40, b=10))
     return fig
 
+# ===== PHASE 2 VISUALIZATIONS (SANKEY, RISK MATRIX, DISTRIBUTION) =====
+def create_transaction_sankey(df):
+    """Create Sankey diagram showing transaction flow between categories"""
+    transaction_flow = df[df['Type'] != 'Cash-In'].groupby(['Type', 'Merchant'])['Amount'].sum().reset_index()
+    source = [i for i, row in enumerate(transaction_flow['Type'].unique()) for _ in range(len(transaction_flow[transaction_flow['Type'] == row]))]
+    target = [len(transaction_flow['Type'].unique()) + i for i, row in enumerate(transaction_flow['Merchant'].unique()) for _ in range(len(transaction_flow[transaction_flow['Merchant'] == row]))]
+    value = transaction_flow['Amount'].tolist()
+    
+    fig = go.Figure(data=[go.Sankey(
+        node=dict(pad=15, thickness=20, line=dict(color='black', width=0.5),
+                  label=list(transaction_flow['Type'].unique()) + list(transaction_flow['Merchant'].unique()),
+                  color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']),
+        link=dict(source=source[:len(value)], target=target[:len(value)], value=value))])
+    fig.update_layout(title="Transaction Flow Sankey", height=400, margin=dict(l=10, r=10, t=40, b=10))
+    return fig
+
+def create_risk_matrix(df, credit_score):
+    """Create 4-quadrant risk vs opportunity matrix"""
+    risk_score = max(0, 100 - credit_score / 8.5)
+    opportunity_score = min(100, df['Balance'].mean() / 1500)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=[opportunity_score], y=[risk_score], mode='markers', 
+                            marker=dict(size=20, color='red'), name='Current Status'))
+    fig.add_hline(y=50, line_dash='dash', line_color='gray')
+    fig.add_vline(x=50, line_dash='dash', line_color='gray')
+    fig.update_layout(title="Risk vs Opportunity Matrix", xaxis_title="Opportunity →", yaxis_title="Risk →",
+                     xaxis=dict(range=[0, 100]), yaxis=dict(range=[0, 100]), height=350,
+                     annotations=[
+                         dict(text="Low Risk<br>High Opp", x=75, y=75, showarrow=False),
+                         dict(text="High Risk<br>High Opp", x=75, y=25, showarrow=False),
+                         dict(text="Low Risk<br>Low Opp", x=25, y=75, showarrow=False),
+                         dict(text="High Risk<br>Low Opp", x=25, y=25, showarrow=False)
+                     ])
+    return fig
+
+def create_distribution_benchmark(df, credit_score):
+    """Create distribution benchmark comparing user to population"""
+    user_metrics = {'Balance': df['Balance'].mean(), 'Transactions': len(df), 'Diversity': df['Type'].nunique()}
+    population_mean = {'Balance': 50000, 'Transactions': 350, 'Diversity': 4}
+    
+    metrics = list(user_metrics.keys())
+    user_vals = [user_metrics[m] / population_mean[m] * 100 for m in metrics]
+    
+    fig = go.Figure(data=[
+        go.Bar(name='You', x=metrics, y=user_vals, marker_color='#1f77b4'),
+        go.Bar(name='Population Avg', x=metrics, y=[100, 100, 100], marker_color='#d62728')
+    ])
+    fig.update_layout(barmode='group', title="Performance vs Population Distribution", height=350,
+                     yaxis_title="Relative Performance (%)", margin=dict(l=10, r=10, t=40, b=10))
+    return fig
+
+
 
 # ===== STREAMLIT UI =====
 st.set_page_config(page_title="💳 Financial Passport - Credit Rating DaaS Bangladesh", layout="wide")
@@ -263,6 +316,19 @@ with radar_col:
 
 st.plotly_chart(create_transaction_heatmap(df), use_container_width=True)
 st.divider()
+# Phase 2 Visualizations
+st.divider()
+st.subheader("📊 Advanced Analytics - Phase 2")
+
+phase2_col1, phase2_col2 = st.columns(2)
+with phase2_col1:
+    st.plotly_chart(create_risk_matrix(df, credit_score), use_container_width=True)
+with phase2_col2:
+    st.plotly_chart(create_distribution_benchmark(df, credit_score), use_container_width=True)
+
+st.plotly_chart(create_transaction_sankey(df), use_container_width=True)
+st.divider()
+
 
 # Financial Metrics & Key Indicators
 with st.expander("📊 Financial Metrics & Indicators", expanded=True):
