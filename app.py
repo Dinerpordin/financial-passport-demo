@@ -5,7 +5,32 @@ import plotly.graph_objs as go
 from datetime import datetime, timedelta
 import random
 
-# Provider Prefix Map
+# ----- Synthetic KYC Profile Generator -----
+def kyc_info_for_number(phone_number):
+    random.seed(hash(phone_number))
+    first_names = ["Rahim", "Karim", "Sumaiya", "Alamgir", "Nazmul", "Jannat", "Rifat", "Sabina", "Mizan", "Shamim"]
+    last_names = ["Hossain", "Islam", "Chowdhury", "Ahmed", "Rahman", "Begum", "Akter", "Khan", "Sarker", "Miah"]
+    cities = ["Dhaka", "Chattogram", "Sylhet", "Khulna", "Rajshahi", "Barisal", "Comilla", "Rangpur", "Mymensingh", "Jessore"]
+    professions = ["Student", "Service", "Business", "Freelancer", "Teacher", "Engineer", "Doctor", "Driver", "Housewife"]
+    name = f"{random.choice(first_names)} {random.choice(last_names)}"
+    address = f"{random.randint(1,140)} {random.choice(['Main Rd', 'Lane', 'Ave','Goli'])}, {random.choice(cities)}"
+    profession = random.choice(professions)
+    reg_year = random.randint(2011, 2023)
+    reg_date = datetime(reg_year, random.randint(1,12), random.randint(1,28)).strftime("%Y-%m-%d")
+    alt_numbers = []
+    for i in range(random.randint(0,2)):
+        alt_pref = random.choice(['017','018','019','015','016'])
+        alt_number = alt_pref + f"{random.randint(10000000,99999999)}"
+        alt_numbers.append(alt_number)
+    return {
+        "Name": name,
+        "Address": address,
+        "Profession": profession,
+        "Registration Date": reg_date,
+        "Other Numbers": alt_numbers
+    }
+
+# ----- Financial Data Simulation -----
 PROVIDER_PREFIX = {
     'Grameenphone': ['017'],
     'Robi': ['018'],
@@ -16,14 +41,15 @@ PROVIDER_PREFIX = {
 PROVIDERS = list(PROVIDER_PREFIX.keys())
 
 def detect_provider(phone):
+    phone = str(phone)
     for provider, prefixes in PROVIDER_PREFIX.items():
         if any(phone.startswith(pref) for pref in prefixes):
             return provider
     return "Unknown"
 
 def generate_sample_transactions(phone_number, provider, profile_type):
-    np.random.seed(abs(hash(phone_number))%10**7)
-    random.seed(abs(hash(phone_number))%10**7)
+    np.random.seed(abs(hash(phone_number)) % 10**7)
+    random.seed(abs(hash(phone_number)) % 10**7)
     months = 12
     days = months * 30
 
@@ -32,7 +58,7 @@ def generate_sample_transactions(phone_number, provider, profile_type):
         "Urban Low Income": {"base_balance": 25000, "txn_multiplier": 1.0},
         "Rural": {"base_balance": 6000, "txn_multiplier": 0.7}
     }
-    profile = base_profile[profile_type]
+    profile = base_profile.get(profile_type, base_profile["Urban High Income"])
     txns = []
     current_balance = profile["base_balance"]
     date = datetime.now() - timedelta(days=days)
@@ -76,7 +102,7 @@ def simulate_transaction(provider):
         'P2P Payment':['Friend/Family','Landlord/Rent','Tuition Fee'],
     }
     t_type = random.choices(types, weights=weights.get(provider,"Unknown"))[0]
-    if t_type in ['Cash-In']:
+    if t_type == 'Cash-In':
         amt = random.randint(1000,5000)
     elif t_type == 'Mobile Recharge':
         amt = random.randint(30,300)
@@ -91,54 +117,62 @@ def simulate_transaction(provider):
     t_merchant = random.choice(merchants_pool[t_type])
     return t_type, amt, t_merchant
 
-# ---- UI and Dashboard ----
+# ----- Streamlit UI & Dashboard -----
+st.set_page_config(page_title="💳 Financial Passport DaaS Bangladesh", layout="wide")
 
-# Streamlit Page config
-st.set_page_config(page_title="💳 Financial Passport - Professional DaaS Demo", layout="wide")
-st.markdown("<style>div.block-container{padding-top:2rem;} .metric-label{font-weight:700; text-transform:uppercase; letter-spacing:0.04em;} .kpi{background:#f5f7fa;border-radius:12px;padding:1.2em 1em;text-align:center;margin-bottom:1em;box-shadow: 0 1px 8px #cfd8dc40;} .kpi .number{font-size:2rem; font-weight: bold; color:#17355a;}</style>", unsafe_allow_html=True)
+st.title("💳 Financial Passport - DaaS Financial Assessment (Bangladesh)")
+st.markdown("""
+Input any Bangladeshi mobile number for instant synthetic financial and KYC assessment as a professional DaaS demo.
+""")
 
-# Auto-generation controls (hidden from user, but you can expose profile as needed)
-phone_number = '01710000001'
+# User input
+with st.sidebar:
+    st.header("DaaS Inputs")
+    phone_number = st.text_input("Mobile Number (Bangladesh)", value="01710000001", max_chars=11, help="Enter a Bangladeshi mobile number")
+    profile_type = st.selectbox("Profile Type",["Urban High Income","Urban Low Income","Rural"])
+
 provider = detect_provider(phone_number)
-profile_type = "Urban High Income"
+user_kyc = kyc_info_for_number(phone_number)
 
-# ---- Data Generation (12 months, background) ----
+with st.expander("🔎 Registered User KYC Information", expanded=True):
+    k1, k2, k3, k4 = st.columns([1,2,1,1])
+    with k1:
+        st.markdown(f"<b>User Name:</b> {user_kyc['Name']}", unsafe_allow_html=True)
+    with k2:
+        st.markdown(f"<b>Address:</b> {user_kyc['Address']}", unsafe_allow_html=True)
+    with k3:
+        st.markdown(f"<b>Profession:</b> {user_kyc['Profession']}", unsafe_allow_html=True)
+    with k4:
+        st.markdown(f"<b>Registered:</b> {user_kyc['Registration Date']}", unsafe_allow_html=True)
+    if len(user_kyc["Other Numbers"]) > 0:
+        st.info(f"Other mobile numbers on record: {', '.join(user_kyc['Other Numbers'])}")
+
+# ----- Financial Assessment -----
 df = generate_sample_transactions(phone_number, provider, profile_type)
-
-# ---- Metrics Calculation ----
-today = datetime.now()
-twelve_months_ago = today - pd.DateOffset(months=12)
 monthly_bal = df.groupby(df['Date'].dt.to_period('M'))['Balance'].mean().reset_index()
-monthly_tx = df.groupby(df['Date'].dt.to_period('M'))['Amount'].sum().reset_index()
-monthly_deposits = df[df.Type=='Cash-In'].groupby(df['Date'].dt.to_period('M'))['Amount'].sum().reset_index()
-
-# KPIs
 avg_balance = int(df['Balance'].mean())
 total_txn = int(df['Amount'].sum())
 monthly_spend = int(df[df['Type']!='Cash-In']['Amount'].sum() / 12)
 utilization = min(100, int(100 * (df[df['Type']!='Cash-In']['Amount'].sum()) / (avg_balance * 12)))
 avg_deposits_per_month = int(df[df['Type']=="Cash-In"].groupby(df['Date'].dt.to_period('M')).size().mean())
-payment_timeliness = f"{random.randint(95, 100)}%"  # Synthetic for demo
+payment_timeliness = f"{random.randint(93, 100)}%"  # Synthetic KPI for demo
 
-# --- Dashboard Layout ---
-st.title("💳 Financial Passport")
-st.markdown("A *professional* DaaS demonstration with 12 months of synthetic transaction analytics. For demonstration use only.")
+st.write(f"#### Financial Assessment for: {phone_number} ({provider}), Profile: {profile_type}")
 
-# ---- KPI Cards ----
+# KPIs
 c1,c2,c3,c4,c5 = st.columns(5)
 with c1:
-    st.markdown('<div class="kpi"><div class="metric-label">AVG. BALANCE</div><div class="number">৳{:,.0f}</div></div>'.format(avg_balance), unsafe_allow_html=True)
+    st.metric('AVG. BALANCE', f"৳{avg_balance:,}")
 with c2:
-    st.markdown('<div class="kpi"><div class="metric-label">TOTAL TRANSACTIONS</div><div class="number">{:,}</div></div>'.format(total_txn), unsafe_allow_html=True)
+    st.metric('TOTAL VOLUME', f"৳{total_txn:,}")
 with c3:
-    st.markdown('<div class="kpi"><div class="metric-label">AVG. MONTHLY SPEND</div><div class="number">৳{:,.0f}</div></div>'.format(monthly_spend), unsafe_allow_html=True)
+    st.metric('MONTHLY SPEND', f"৳{monthly_spend:,}")
 with c4:
-    st.markdown('<div class="kpi"><div class="metric-label">CREDIT UTILIZATION</div><div class="number">{:d}%</div></div>'.format(utilization), unsafe_allow_html=True)
+    st.metric('UTILIZATION RATE', f"{utilization}%")
 with c5:
-    st.markdown('<div class="kpi"><div class="metric-label">DEPOSITS/MONTH</div><div class="number">{:,.0f}</div></div>'.format(avg_deposits_per_month), unsafe_allow_html=True)
+    st.metric('DEPOSITS/MONTH', f"{avg_deposits_per_month:,}")
 
-# Timeliness (synthetic international metric)
-st.markdown(f'<div class="kpi"><div class="metric-label">PAYMENT TIMELINESS</div><div class="number">{payment_timeliness}</div></div>', unsafe_allow_html=True)
+st.metric('PAYMENT TIMELINESS', payment_timeliness)
 
 # ---- Main Chart ----
 st.subheader("Balance Trend (12 months)")
@@ -152,7 +186,7 @@ trend.add_trace(go.Scatter(
     marker=dict(size=8, color='#12b886')
 ))
 trend.update_layout(
-    margin=dict(t=10, b=10, l=0, r=0),
+    margin=dict(t=20, b=15, l=0, r=0),
     xaxis_title="Month",
     yaxis_title="Average Balance",
     height=340,
@@ -161,7 +195,6 @@ trend.update_layout(
 )
 st.plotly_chart(trend, use_container_width=True)
 
-# --- Analytics Breakdown ---
 col1, col2 = st.columns([2,1])
 with col1:
     st.markdown("#### Spend by Category")
@@ -195,5 +228,4 @@ st.divider()
 st.subheader("Full Transaction History (Latest at top)")
 st.dataframe(df.sort_values('Date', ascending=False).reset_index(drop=True), use_container_width=True, height=420)
 
-st.caption("All data above is synthetic and for illustrative DaaS demo use only. Dashboard visual design inspired by leading international reporting matrices.")
-
+st.caption("All data above is synthetic and for DaaS demonstration purposes. Change the mobile number for instant, unique assessment.")
