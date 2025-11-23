@@ -134,6 +134,78 @@ def simulate_transaction(provider):
     t_merchant = random.choice(merchants_pool[t_type])
     return t_type, amt, t_merchant
 
+# ===== PHASE 1 VISUALIZATIONS (GAUGE, RADAR, HEATMAP) =====
+def create_credit_gauge(score):
+    """Create a gauge chart for credit score (300-850 scale with color severity levels)"""
+    fig = go.Figure(data=[go.Indicator(
+        mode="gauge+number+delta",
+        value=score,
+        title={'text': "Credit Score"},
+        delta={'reference': 650, 'suffix': " vs Good"},
+        gauge={
+            'axis': {'range': [300, 850]},
+            'bar': {'color': "#1f77b4"},
+            'steps': [
+                {'range': [300, 450], 'color': "#e74c3c"},  # POOR
+                {'range': [450, 550], 'color': "#e67e22"},  # FAIR
+                {'range': [550, 650], 'color': "#f39c12"},  # GOOD
+                {'range': [650, 750], 'color': "#2ecc71"},  # VERY GOOD
+                {'range': [750, 850], 'color': "#27ae60"}   # EXCELLENT
+            ],
+            'threshold': {
+                'line': {'color': "#000", 'width': 2},
+                'thickness': 0.75,
+                'value': 750
+            }
+        }
+    )])
+    fig.update_layout(margin=dict(l=15, r=15, t=40, b=15), height=300, paper_bgcolor="rgba(0,0,0,0)", font=dict(size=12))
+    return fig
+
+def create_profile_radar(df, user_kyc):
+    """Create radar chart comparing user profile to ideal profile"""
+    categories = ['Payment Consistency', 'Balance Stability', 'Transaction Diversity', 'Usage Frequency', 'Account Maturity']
+    
+    # Calculate user metrics (0-100 scale)
+    daily_txns = len(df.groupby('Date'))
+    payment_consistency = min(100, (daily_txns / 365) * 100)
+    balance_stability = min(100, 100 - (df['Balance'].std() / df['Balance'].mean() * 100)) if df['Balance'].mean() > 0 else 50
+    transaction_diversity = min(100, (df['Type'].nunique() / 6) * 100)
+    usage_frequency = min(100, (len(df) / 365) * 100)
+    years_active = 2024 - user_kyc['Registration Year']
+    account_maturity = min(100, years_active * 10)
+    
+    user_values = [payment_consistency, balance_stability, transaction_diversity, usage_frequency, account_maturity]
+    ideal_values = [100, 100, 100, 100, 100]
+    
+    fig = go.Figure(data=[
+        go.Scatterpolar(r=user_values, theta=categories, fill='toself', name='Your Profile', line=dict(color='#1f77b4')),
+        go.Scatterpolar(r=ideal_values, theta=categories, fill='toself', name='Ideal Profile', line=dict(color='#2ecc71'), opacity=0.7)
+    ])
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=True, height=350, margin=dict(l=10, r=10, t=10, b=10))
+    return fig
+
+def create_transaction_heatmap(df):
+    """Create calendar heatmap showing transaction intensity by day"""
+    # Group transactions by date
+    daily_counts = df.groupby('Date').size().reset_index(name='count')
+    daily_counts['Date'] = pd.to_datetime(daily_counts['Date'])
+    daily_counts['day_of_week'] = daily_counts['Date'].dt.day_name()
+    daily_counts['week_of_year'] = daily_counts['Date'].dt.isocalendar().week
+    daily_counts['year'] = daily_counts['Date'].dt.year
+    
+    # Create heatmap
+    fig = go.Figure(data=go.Heatmap(
+        z=daily_counts['count'],
+        x=daily_counts['Date'].dt.strftime('%Y-%m-%d'),
+        colorscale='YlGnBu',
+        name='Transactions',
+        colorbar=dict(title="Transactions")
+    ))
+    fig.update_layout(title="Transaction Activity Heatmap", xaxis_title="Date", yaxis_title="", height=280, margin=dict(l=10, r=10, t=40, b=10))
+    return fig
+
+
 # ===== STREAMLIT UI =====
 st.set_page_config(page_title="💳 Financial Passport - Credit Rating DaaS Bangladesh", layout="wide")
 st.title("💳 Financial Passport - Comprehensive Credit Rating Report")
@@ -180,6 +252,17 @@ with col2:
     st.metric("Score", credit_score, delta=None)
 with col3:
     st.markdown(f"<h3 style='text-align: center; color: {tier_color};'>{rating_tier}</h3>", unsafe_allow_html=True)
+
+# Phase 1 Visualizations
+st.divider()
+gauge_col, radar_col = st.columns(2)
+with gauge_col:
+    st.plotly_chart(create_credit_gauge(credit_score), use_container_width=True)
+with radar_col:
+    st.plotly_chart(create_profile_radar(df, user_kyc), use_container_width=True)
+
+st.plotly_chart(create_transaction_heatmap(df), use_container_width=True)
+st.divider()
 
 # Financial Metrics & Key Indicators
 with st.expander("📊 Financial Metrics & Indicators", expanded=True):
