@@ -61,6 +61,91 @@ def get_credit_rating_tier(score):
     else:
         return "POOR", "#e74c3c"
 
+def get_score_recommendations(credit_score, df, user_kyc):
+    """Generate personalized recommendations based on credit score"""
+    recommendations = []
+    
+    # Payment Consistency
+    daily_txns = len(df.groupby('Date'))
+    if daily_txns < 300:
+        recommendations.append("💡 Increase your payment consistency with regular bill payments!")
+    
+    # Transaction Diversity
+    if df['Type'].nunique() < 5:
+        recommendations.append("💡 Try diversifying your transaction types to improve your score.")
+    
+    # Balance Stability
+    if df['Balance'].std() / df['Balance'].mean() > 0.5:
+        recommendations.append("💡 Maintain a more stable balance to show financial reliability.")
+    
+    # Account Maturity
+    years_active = 2024 - user_kyc['Registration Year']
+    if years_active < 3:
+        recommendations.append("💡 Continue building your transaction history over time.")
+    
+    if credit_score >= 750:
+        recommendations.append("🎉 Excellent credit! You're eligible for premium financial products.")
+    
+    return recommendations
+
+def calculate_percentile_rank(credit_score, profile_type):
+    """Calculate percentile rank based on score and profile type"""
+    # Simulated population distribution
+    if profile_type == "Urban High Income":
+        mean, std = 720, 50
+    elif profile_type == "Urban Low Income":
+        mean, std = 650, 60
+    else:  # Rural
+        mean, std = 620, 55
+    
+    # Calculate percentile (simplified)
+    z_score = (credit_score - mean) / std
+    # Convert to percentile (0-100)
+    from scipy import stats
+    percentile = int(stats.norm.cdf(z_score) * 100)
+    return max(1, min(99, percentile))
+
+def get_metric_tooltips():
+    """Return tooltips for various metrics"""
+    return {
+        "Payment History": "Measures consistency and timeliness of your transactions over time.",
+        "Credit Utilization": "Ratio of spending to available balance. Lower is better.",
+        "Credit Mix": "Diversity of transaction types (recharge, e-commerce, bills, etc.).",
+        "Length of History": "How long you've been using mobile financial services.",
+        "Inquiries": "Number of times your credit has been checked.",
+        "Balance Stability": "How consistent your account balance remains over time.",
+        "Transaction Diversity": "Variety of merchants and transaction categories you use.",
+        "Usage Frequency": "How actively you use mobile financial services."
+    }
+
+def get_translations():
+    """Bilingual support for Bangla and English"""
+    return {
+        'en': {
+            'title': '💳 Financial Passport - Comprehensive Credit Rating Report',
+            'subtitle': 'Advanced Credit Assessment System for Bangladesh Mobile-First Population',
+            'description': 'Comprehensive credit scoring based on MFS transaction behavior, alternative data, and financial indicators.',
+            'kyc_header': '📋 Personal Information (KYC)',
+            'credit_score': 'Credit Score & Rating',
+            'recommendations': '💡 Personalized Recommendations',
+            'percentile': 'Percentile Rank',
+            'security_notice': '🔒 Privacy & Security Notice',
+            'security_text': 'Your data is encrypted and secure. This is a synthetic demo. In production, we follow strict data protection standards.',
+        },
+        'bn': {
+            'title': '💳 আর্থিক পাসপোর্ট - বিস্তৃত ক্রেডিট রেটিং রিপোর্ট',
+            'subtitle': 'বাংলাদেশ মোবাইল-প্রথম জনসংখ্যার জন্য উন্নত ক্রেডিট মূল্যায়ন সিস্টেম',
+            'description': 'এমএফএস লেনদেন আচরণ, বিকল্প ডেটা এবং আর্থিক সূচকের উপর ভিত্তি করে ব্যাপক ক্রেডিট স্কোরিং।',
+            'kyc_header': '📋 ব্যক্তিগত তথ্য (কেওয়াইসি)',
+            'credit_score': 'ক্রেডিট স্কোর ও রেটিং',
+            'recommendations': '💡 ব্যক্তিগত সুপারিশ',
+            'percentile': 'শতাংশিক র‍্যাঙ্ক',
+            'security_notice': '🔒 গোপনীয়তা ও নিরাপত্তা নোটিশ',
+            'security_text': 'আপনার ডেটা এনক্রিপ্ট করা এবং নিরাপদ। এটি একটি সিন্থেটিক ডেমো। উৎপাদনে, আমরা কঠোর ডেটা সুরক্ষা মান অনুসরণ করি।',
+        }
+    }
+
+
 # ===== KYC INFO AND DATA GENERATION =====
 def kyc_info_for_number(phone_number):
     random.seed(hash(phone_number))
@@ -307,6 +392,27 @@ with col3:
     st.markdown(f"<h3 style='text-align: center; color: {tier_color};'>{rating_tier}</h3>", unsafe_allow_html=True)
 
 # Phase 1 Visualizations
+
+# Recommendations & Percentile
+recommendations = get_score_recommendations(credit_score, df, user_kyc)
+percentile = calculate_percentile_rank(credit_score, profile_type)
+
+with st.expander("💡 Personalized Recommendations & Insights", expanded=True):
+    col_r1, col_r2 = st.columns([2, 1])
+    with col_r1:
+        if recommendations:
+            for rec in recommendations:
+                st.info(rec)
+    with col_r2:
+        st.metric("Percentile Rank", f"{percentile}th")
+        st.caption(f"You rank better than {percentile}% of users in the {profile_type} category.")
+
+# Privacy & Security Notice
+with st.expander("🔒 Privacy & Security Notice", expanded=False):
+    st.success("✅ Your data is encrypted and secure.")
+    st.info("🛡️ This is a synthetic demo for Bangladesh DaaS. In production, we follow strict data protection standards including Bangladesh Data Protection Act compliance.")
+    st.warning("⚠️ Never share your financial credentials with unauthorized parties.")
+
 st.divider()
 gauge_col, radar_col = st.columns(2)
 with gauge_col:
