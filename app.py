@@ -4,187 +4,514 @@ import numpy as np
 import plotly.graph_objs as go
 from datetime import datetime, timedelta
 import random
-from io import BytesIO
-import base64
 
-# =========== Multilingual and Font Settings ==============
-LANGS = {'English':'en','বাংলা':'bn'}
-translations = {
-    'en': {
-        'title': '💳 Financial Passport - Comprehensive Credit Rating Report',
-        'subtitle': 'Advanced Credit Assessment System for Bangladesh Mobile-First Population',
-        'description': 'Comprehensive credit scoring based on MFS transaction behavior, alternative data, and financial indicators.',
-        'kyc_header': '📋 Personal Information (KYC)',
-        'credit_score': 'Credit Score & Rating',
-        'recommendations': '💡 Personalized Recommendations',
-        'percentile': 'Percentile Rank',
-        'security_notice': '🔒 Privacy & Security Notice',
-        'security_text': 'Your data is encrypted and secure. This is a synthetic demo.',
-        'export_pdf': 'Export PDF',
-        'export_excel': 'Export Excel',
-        'print': 'Print Report',
-        'language': 'Language',
-    },
-    'bn': {
-        'title': '💳 আর্থিক পাসপোর্ট - বিস্তৃত ক্রেডিট রেটিং রিপোর্ট',
-        'subtitle': 'বাংলাদেশ মোবাইল-প্রথম জনসংখ্যার জন্য উন্নত ক্রেডিট মূল্যায়ন সিস্টেম',
-        'description': 'এমএফএস লেনদেন আচরণ, বিকল্প ডেটা এবং আর্থিক সূচকের উপর ভিত্তি করে ব্যাপক ক্রেডিট স্কোরিং।',
-        'kyc_header': '📋 ব্যক্তিগত তথ্য (কেওয়াইসি)',
-        'credit_score': 'ক্রেডিট স্কোর ও রেটিং',
-        'recommendations': '💡 ব্যক্তিগত সুপারিশ',
-        'percentile': 'শতাংশিক র‍্যাঙ্ক',
-        'security_notice': '🔒 গোপনীয়তা ও নিরাপত্তা নোটিশ',
-        'security_text': 'আপনার ডেটা এনক্রিপ্ট করা এবং নিরাপদ। এটি একটি সিন্থেটিক ডেমো।',
-        'export_pdf': 'পিডিএফ এক্সপোর্ট',
-        'export_excel': 'এক্সেল এক্সপোর্ট',
-        'print': 'প্রিন্ট রিপোর্ট',
-        'language':'ভাষা',
+# ===== CREDIT SCORE CALCULATION FUNCTIONS =====
+def calculate_credit_score(df, user_kyc, registration_year):
+    base_score = 300
+    payment_history_score = calculate_payment_history_score(df)
+    utilization_score = calculate_utilization_score(df)
+    length_score = calculate_length_score(registration_year)
+    mix_score = calculate_credit_mix_score(df)
+    inquiries_score = calculate_inquiries_score()
+    final_score = base_score + (
+        payment_history_score * 0.35 +
+        utilization_score * 0.30 +
+        length_score * 0.15 +
+        mix_score * 0.10 +
+        inquiries_score * 0.10
+    )
+    return min(850, max(300, final_score))
+
+def calculate_payment_history_score(df):
+    daily_txns = df.groupby('Date').size()
+    consistency = min(100, len(daily_txns) * 5)
+    timeliness_bonus = 100
+    return consistency + timeliness_bonus
+
+def calculate_utilization_score(df):
+    avg_balance = df['Balance'].mean()
+    total_monthly_spend = df[df['Type'] != 'Cash-In']['Amount'].sum() / 12
+    utilization_ratio = min(1, total_monthly_spend / (avg_balance + 1))
+    util_score = 150 * (1 - utilization_ratio * 0.5)
+    return util_score
+
+def calculate_length_score(registration_year):
+    years_active = 2024 - registration_year
+    length_score = min(100, years_active * 10)
+    return length_score
+
+def calculate_credit_mix_score(df):
+    unique_types = df['Type'].nunique()
+    unique_merchants = df['Merchant'].nunique()
+    mix_score = (unique_types / 6) * 40 + (min(unique_merchants, 20) / 20) * 40
+    return mix_score
+
+def calculate_inquiries_score():
+    return random.randint(60, 75)
+
+def get_credit_rating_tier(score):
+    if score >= 750:
+        return "EXCELLENT", "#27ae60"
+    elif score >= 700:
+        return "VERY GOOD", "#2ecc71"
+    elif score >= 650:
+        return "GOOD", "#f39c12"
+    elif score >= 600:
+        return "FAIR", "#e67e22"
+    else:
+        return "POOR", "#e74c3c"
+
+def get_score_recommendations(credit_score, df, user_kyc):
+    """Generate personalized recommendations based on credit score"""
+    recommendations = []
+    
+    # Payment Consistency
+    daily_txns = len(df.groupby('Date'))
+    if daily_txns < 300:
+        recommendations.append("💡 Increase your payment consistency with regular bill payments!")
+    
+    # Transaction Diversity
+    if df['Type'].nunique() < 5:
+        recommendations.append("💡 Try diversifying your transaction types to improve your score.")
+    
+    # Balance Stability
+    if df['Balance'].std() / df['Balance'].mean() > 0.5:
+        recommendations.append("💡 Maintain a more stable balance to show financial reliability.")
+    
+    # Account Maturity
+    years_active = 2024 - user_kyc['Registration Year']
+    if years_active < 3:
+        recommendations.append("💡 Continue building your transaction history over time.")
+    
+    if credit_score >= 750:
+        recommendations.append("🎉 Excellent credit! You're eligible for premium financial products.")
+    
+    return recommendations
+
+def calculate_percentile_rank(credit_score, profile_type):
+    """Calculate percentile rank based on score and profile type"""
+    # Simulated population distribution
+    if profile_type == "Urban High Income":
+        mean, std = 720, 50
+    elif profile_type == "Urban Low Income":
+        mean, std = 650, 60
+    else:  # Rural
+        mean, std = 620, 55
+    
+    # Calculate percentile (simplified)
+    z_score = (credit_score - mean) / std
+    # Convert to percentile (0-100)
+    from scipy import stats
+    percentile = int(stats.norm.cdf(z_score) * 100)
+    return max(1, min(99, percentile))
+
+def get_metric_tooltips():
+    """Return tooltips for various metrics"""
+    return {
+        "Payment History": "Measures consistency and timeliness of your transactions over time.",
+        "Credit Utilization": "Ratio of spending to available balance. Lower is better.",
+        "Credit Mix": "Diversity of transaction types (recharge, e-commerce, bills, etc.).",
+        "Length of History": "How long you've been using mobile financial services.",
+        "Inquiries": "Number of times your credit has been checked.",
+        "Balance Stability": "How consistent your account balance remains over time.",
+        "Transaction Diversity": "Variety of merchants and transaction categories you use.",
+        "Usage Frequency": "How actively you use mobile financial services."
     }
-}
 
-def T(key):
-    return translations[st.session_state.get('lang', 'en')][key]
+def get_translations():
+    """Bilingual support for Bangla and English"""
+    return {
+        'en': {
+            'title': '💳 Financial Passport - Comprehensive Credit Rating Report',
+            'subtitle': 'Advanced Credit Assessment System for Bangladesh Mobile-First Population',
+            'description': 'Comprehensive credit scoring based on MFS transaction behavior, alternative data, and financial indicators.',
+            'kyc_header': '📋 Personal Information (KYC)',
+            'credit_score': 'Credit Score & Rating',
+            'recommendations': '💡 Personalized Recommendations',
+            'percentile': 'Percentile Rank',
+            'security_notice': '🔒 Privacy & Security Notice',
+            'security_text': 'Your data is encrypted and secure. This is a synthetic demo. In production, we follow strict data protection standards.',
+        },
+        'bn': {
+            'title': '💳 আর্থিক পাসপোর্ট - বিস্তৃত ক্রেডিট রেটিং রিপোর্ট',
+            'subtitle': 'বাংলাদেশ মোবাইল-প্রথম জনসংখ্যার জন্য উন্নত ক্রেডিট মূল্যায়ন সিস্টেম',
+            'description': 'এমএফএস লেনদেন আচরণ, বিকল্প ডেটা এবং আর্থিক সূচকের উপর ভিত্তি করে ব্যাপক ক্রেডিট স্কোরিং।',
+            'kyc_header': '📋 ব্যক্তিগত তথ্য (কেওয়াইসি)',
+            'credit_score': 'ক্রেডিট স্কোর ও রেটিং',
+            'recommendations': '💡 ব্যক্তিগত সুপারিশ',
+            'percentile': 'শতাংশিক র‍্যাঙ্ক',
+            'security_notice': '🔒 গোপনীয়তা ও নিরাপত্তা নোটিশ',
+            'security_text': 'আপনার ডেটা এনক্রিপ্ট করা এবং নিরাপদ। এটি একটি সিন্থেটিক ডেমো। উৎপাদনে, আমরা কঠোর ডেটা সুরক্ষা মান অনুসরণ করি।',
+        }
+    }
 
-# =========== Sidebar Language Option =============
-if 'lang' not in st.session_state:
-    st.session_state['lang'] = 'en'
-with st.sidebar:
-    st.session_state['lang'] = LANGS[st.selectbox('Language | ভাষা', list(LANGS.keys()))]
 
-st.set_page_config(page_title=T('title'), layout="wide")
-# Standardize fonts/styles in headers
-st.markdown(f"<h2 style='font-size:2rem;'>{T('title')}</h2>",unsafe_allow_html=True)
-st.markdown(f"<h4 style='font-size:1.3rem; color:#555;'>{T('subtitle')}</h4>",unsafe_allow_html=True)
-st.markdown(f"<p style='font-size:1.1rem;'>{T('description')}</p>",unsafe_allow_html=True)
-
-# ================= Input & Data Generation ==================
-with st.sidebar:
-    st.header("DaaS Assessment Inputs")
-    phone_number = st.text_input("Mobile Number (Bangladesh)", value="01710000001", max_chars=11)
-    profile_type = st.selectbox("Profile Type",["Urban High Income","Urban Low Income","Rural"])
+# ===== KYC INFO AND DATA GENERATION =====
 def kyc_info_for_number(phone_number):
-    # ... unchanged ...
-    pass
+    random.seed(hash(phone_number))
+    first_names = ["Rahim", "Karim", "Sumaiya", "Alamgir", "Nazmul", "Jannat", "Rifat", "Sabina", "Mizan", "Shamim"]
+    last_names = ["Hossain", "Islam", "Chowdhury", "Ahmed", "Rahman", "Begum", "Akter", "Khan", "Sarker", "Miah"]
+    cities = ["Dhaka", "Chattogram", "Sylhet", "Khulna", "Rajshahi", "Barisal", "Comilla", "Rangpur"]
+    professions = ["Student", "Service", "Business", "Freelancer", "Teacher", "Engineer", "Doctor", "Driver"]
+    name = f"{random.choice(first_names)} {random.choice(last_names)}"
+    address = f"{random.randint(1,140)} {random.choice(['Main Rd', 'Lane', 'Ave','Goli'])}, {random.choice(cities)}"
+    profession = random.choice(professions)
+    reg_year = random.randint(2011, 2023)
+    reg_date = datetime(reg_year, random.randint(1,12), random.randint(1,28)).strftime("%Y-%m-%d")
+    alt_numbers = []
+    for i in range(random.randint(0,2)):
+        alt_pref = random.choice(['017','018','019','015','016'])
+        alt_number = alt_pref + f"{random.randint(10000000,99999999)}"
+        alt_numbers.append(alt_number)
+    return {"Name": name, "Address": address, "Profession": profession, "Registration Date": reg_date, "Registration Year": reg_year, "Other Numbers": alt_numbers}
+
+PROVIDER_PREFIX = {'Grameenphone': ['017'], 'Robi': ['018'], 'Banglalink': ['019'], 'Teletalk': ['015'], 'Airtel': ['016']}
+PROVIDERS = list(PROVIDER_PREFIX.keys())
+
 def detect_provider(phone):
-    # ... unchanged ...
-    pass
+    phone = str(phone)
+    for provider, prefixes in PROVIDER_PREFIX.items():
+        if any(phone.startswith(pref) for pref in prefixes):
+            return provider
+    return "Unknown"
+
 def generate_sample_transactions(phone_number, provider, profile_type):
-    # FIX: Recent dates within last 12 months
+    np.random.seed(abs(hash(phone_number)) % 10**7)
+    random.seed(abs(hash(phone_number)) % 10**7)
     months = 12
     days = months * 30
-    start_date = datetime.now() - timedelta(days=days)
-    # ... unchanged except start_date ...
-    pass
+    base_profile = {"Urban High Income": {"base_balance": 150000, "txn_multiplier": 1.7}, "Urban Low Income": {"base_balance": 25000, "txn_multiplier": 1.0}, "Rural": {"base_balance": 6000, "txn_multiplier": 0.7}}
+    profile = base_profile.get(profile_type, base_profile["Urban High Income"])
+    txns = []
+    current_balance = profile["base_balance"]
+    date = datetime.now() - timedelta(days=days)
+    for i in range(days):
+        num_txns_today = int(np.random.poisson(2 * profile["txn_multiplier"]))
+        for _ in range(num_txns_today):
+            t_type, t_amt, t_merchant = simulate_transaction(provider)
+            if t_type == "Cash-In":
+                current_balance += t_amt
+            else:
+                current_balance = max(0, current_balance - t_amt)
+            txns.append({"Date": date.strftime("%Y-%m-%d"), "Type": t_type, "Amount": round(t_amt, 2), "Merchant": t_merchant, "Balance": round(current_balance, 2), "Provider": provider})
+        date += timedelta(days=1)
+    df = pd.DataFrame(txns)
+    df['Date'] = pd.to_datetime(df['Date'])
+    return df
 
-provider = detect_provider(phone_number)
-user_kyc = kyc_info_for_number(phone_number)
-df = generate_sample_transactions(phone_number, provider, profile_type)
+def simulate_transaction(provider):
+    weights = {'Grameenphone': [0.13, 0.13, 0.15, 0.20, 0.14, 0.25], 'Robi': [0.20, 0.10, 0.18, 0.18, 0.14, 0.20], 'Banglalink': [0.10, 0.11, 0.25, 0.25, 0.11, 0.18], 'Teletalk': [0.20, 0.13, 0.13, 0.18, 0.18, 0.18], 'Airtel': [0.17, 0.19, 0.16, 0.18, 0.13, 0.17], 'Unknown': [0.15,0.15,0.15,0.15,0.20,0.20]}
+    types = ['Cash-In','Cash-Out','Mobile Recharge','E-commerce','Bill Payment','P2P Payment']
+    merchants_pool = {'Mobile Recharge': ['GP Topup', 'Robi Topup', 'Banglalink Topup'], 'E-commerce': ['Daraz', 'Evaly', 'Pickaboo'], 'Bill Payment': ['DESCO','WASA','ISP'], 'Cash-In': ['bKash Agent', 'Nagad Agent'], 'Cash-Out': ['ATM','Agent'], 'P2P Payment':['Friend/Family','Rent','Tuition']}
+    t_type = random.choices(types, weights=weights.get(provider,"Unknown"))[0]
+    if t_type == 'Cash-In':
+        amt = random.randint(1000,5000)
+    elif t_type == 'Mobile Recharge':
+        amt = random.randint(30,300)
+    elif t_type == 'E-commerce':
+        amt = random.randint(300,5000)
+    elif t_type == 'Bill Payment':
+        amt = random.randint(250,2500)
+    elif t_type == 'P2P Payment':
+        amt = random.randint(100,2000)
+    else:
+        amt = random.randint(1000,5000)
+    t_merchant = random.choice(merchants_pool[t_type])
+    return t_type, amt, t_merchant
 
-# ============= Core Calculations ================
-def calculate_credit_score(df, user_kyc, registration_year):
-    # ... unchanged ...
-    pass
-def get_credit_rating_tier(score): pass
-# etc. (all unchanged logic: recommendations, percentile, metrics)
+# ===== PHASE 1 VISUALIZATIONS (GAUGE, RADAR, HEATMAP) =====
+def create_credit_gauge(score):
+    """Create a gauge chart for credit score (300-850 scale with color severity levels)"""
+    fig = go.Figure(data=[go.Indicator(
+        mode="gauge+number+delta",
+        value=score,
+        title={'text': "Credit Score"},
+        delta={'reference': 650, 'suffix': " vs Good"},
+        gauge={
+            'axis': {'range': [300, 850]},
+            'bar': {'color': "#1f77b4"},
+            'steps': [
+                {'range': [300, 450], 'color': "#e74c3c"},  # POOR
+                {'range': [450, 550], 'color': "#e67e22"},  # FAIR
+                {'range': [550, 650], 'color': "#f39c12"},  # GOOD
+                {'range': [650, 750], 'color': "#2ecc71"},  # VERY GOOD
+                {'range': [750, 850], 'color': "#27ae60"}   # EXCELLENT
+            ],
+            'threshold': {
+                'line': {'color': "#000", 'width': 2},
+                'thickness': 0.75,
+                'value': 750
+            }
+        }
+    )])
+    fig.update_layout(margin=dict(l=15, r=15, t=40, b=15), height=300, paper_bgcolor="rgba(0,0,0,0)", font=dict(size=12))
+    return fig
 
-credit_score = calculate_credit_score(df, user_kyc, user_kyc['Registration Year'])
-rating_tier, tier_color = get_credit_rating_tier(credit_score)
-
-# ========== Visualization Functions ============
-def create_credit_gauge(score): pass # unchanged
-def create_profile_radar(df, user_kyc): pass # unchanged
+def create_profile_radar(df, user_kyc):
+    """Create radar chart comparing user profile to ideal profile"""
+    categories = ['Payment Consistency', 'Balance Stability', 'Transaction Diversity', 'Usage Frequency', 'Account Maturity']
+    
+    # Calculate user metrics (0-100 scale)
+    daily_txns = len(df.groupby('Date'))
+    payment_consistency = min(100, (daily_txns / 365) * 100)
+    balance_stability = min(100, 100 - (df['Balance'].std() / df['Balance'].mean() * 100)) if df['Balance'].mean() > 0 else 50
+    transaction_diversity = min(100, (df['Type'].nunique() / 6) * 100)
+    usage_frequency = min(100, (len(df) / 365) * 100)
+    years_active = 2024 - user_kyc['Registration Year']
+    account_maturity = min(100, years_active * 10)
+    
+    user_values = [payment_consistency, balance_stability, transaction_diversity, usage_frequency, account_maturity]
+    ideal_values = [100, 100, 100, 100, 100]
+    
+    fig = go.Figure(data=[
+        go.Scatterpolar(r=user_values, theta=categories, fill='toself', name='Your Profile', line=dict(color='#1f77b4')),
+        go.Scatterpolar(r=ideal_values, theta=categories, fill='toself', name='Ideal Profile', line=dict(color='#2ecc71'), opacity=0.7)
+    ])
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=True, height=350, margin=dict(l=10, r=10, t=10, b=10))
+    return fig
 
 def create_transaction_heatmap(df):
-    # FIX: Recent, accurate years
+    """Create calendar heatmap showing transaction intensity by day"""
+    # Group transactions by date
     daily_counts = df.groupby('Date').size().reset_index(name='count')
     daily_counts['Date'] = pd.to_datetime(daily_counts['Date'])
+    daily_counts['day_of_week'] = daily_counts['Date'].dt.day_name()
+    daily_counts['week_of_year'] = daily_counts['Date'].dt.isocalendar().week
+    daily_counts['year'] = daily_counts['Date'].dt.year
+    
+    # Create heatmap
     fig = go.Figure(data=go.Heatmap(
         z=daily_counts['count'],
         x=daily_counts['Date'].dt.strftime('%Y-%m-%d'),
         colorscale='YlGnBu',
         name='Transactions',
-        colorbar=dict(title="Txns")
+        colorbar=dict(title="Transactions")
     ))
-    fig.update_layout(title="Transaction Activity Heatmap", xaxis_title="Date", height=250, font=dict(size=13))
+    fig.update_layout(title="Transaction Activity Heatmap", xaxis_title="Date", yaxis_title="", height=280, margin=dict(l=10, r=10, t=40, b=10))
     return fig
 
+# ===== PHASE 2 VISUALIZATIONS (SANKEY, RISK MATRIX, DISTRIBUTION) =====
 def create_transaction_sankey(df):
-    # FIX: Larger fonts/labels, show amount in link label
+    """Create Sankey diagram showing transaction flow between categories"""
     transaction_flow = df[df['Type'] != 'Cash-In'].groupby(['Type', 'Merchant'])['Amount'].sum().reset_index()
-    types = transaction_flow['Type'].unique()
-    merchants = transaction_flow['Merchant'].unique()
-    node_labels = list(types) + list(merchants)
-    values = transaction_flow['Amount'].tolist()
-    sources = [list(types).index(row['Type']) for idx, row in transaction_flow.iterrows()]
-    targets = [len(types)+list(merchants).index(row['Merchant']) for idx, row in transaction_flow.iterrows()]
-    custom_labels = [f"{row['Type']}→{row['Merchant']}: ৳{int(row['Amount']):,}" for _,row in transaction_flow.iterrows()]
+    source = [i for i, row in enumerate(transaction_flow['Type'].unique()) for _ in range(len(transaction_flow[transaction_flow['Type'] == row]))]
+    target = [len(transaction_flow['Type'].unique()) + i for i, row in enumerate(transaction_flow['Merchant'].unique()) for _ in range(len(transaction_flow[transaction_flow['Merchant'] == row]))]
+    value = transaction_flow['Amount'].tolist()
+    
     fig = go.Figure(data=[go.Sankey(
-        node=dict(label=node_labels, pad=20, thickness=24, font=dict(size=16)),
-        link=dict(source=sources, target=targets, value=values, label=custom_labels)
-    )])
-    fig.update_layout(title="Transaction Flow Sankey", height=400, font=dict(size=15), margin=dict(t=40))
+        node=dict(pad=15, thickness=20, line=dict(color='black', width=0.5),
+                  label=list(transaction_flow['Type'].unique()) + list(transaction_flow['Merchant'].unique()),
+                  color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']),
+        link=dict(source=source[:len(value)], target=target[:len(value)], value=value))])
+    fig.update_layout(title="Transaction Flow Sankey", height=400, margin=dict(l=10, r=10, t=40, b=10))
     return fig
 
-# ============ Export/Print ===============
-def create_download(df, filename, method='excel'):
-    if method == 'excel':
-        output = BytesIO()
-        df.to_excel(output, index=False)
-        data = output.getvalue()
-        b64 = base64.b64encode(data).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{T("export_excel")}</a>'
-    else:
-        csv = df.to_csv(index=False).encode()
-        b64 = base64.b64encode(csv).decode()
-        href = f'<a href="data:file/pdf;base64,{b64}" download="{filename}">{T("export_pdf")}</a>'
-    st.markdown(href, unsafe_allow_html=True)
+def create_risk_matrix(df, credit_score):
+    """Create 4-quadrant risk vs opportunity matrix"""
+    risk_score = max(0, 100 - credit_score / 8.5)
+    opportunity_score = min(100, df['Balance'].mean() / 1500)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=[opportunity_score], y=[risk_score], mode='markers', 
+                            marker=dict(size=20, color='red'), name='Current Status'))
+    fig.add_hline(y=50, line_dash='dash', line_color='gray')
+    fig.add_vline(x=50, line_dash='dash', line_color='gray')
+    fig.update_layout(title="Risk vs Opportunity Matrix", xaxis_title="Opportunity →", yaxis_title="Risk →",
+                     xaxis=dict(range=[0, 100]), yaxis=dict(range=[0, 100]), height=350,
+                     annotations=[
+                         dict(text="Low Risk<br>High Opp", x=75, y=75, showarrow=False),
+                         dict(text="High Risk<br>High Opp", x=75, y=25, showarrow=False),
+                         dict(text="Low Risk<br>Low Opp", x=25, y=75, showarrow=False),
+                         dict(text="High Risk<br>Low Opp", x=25, y=25, showarrow=False)
+                     ])
+    return fig
 
-def print_button():
-    st.markdown(f"""<button onclick="window.print()" style="margin:6px; padding:7px 17px; 
-                font-size:1.1em;">{T("print")}</button>""", unsafe_allow_html=True)
+def create_distribution_benchmark(df, credit_score):
+    """Create distribution benchmark comparing user to population"""
+    user_metrics = {'Balance': df['Balance'].mean(), 'Transactions': len(df), 'Diversity': df['Type'].nunique()}
+    population_mean = {'Balance': 50000, 'Transactions': 350, 'Diversity': 4}
+    
+    metrics = list(user_metrics.keys())
+    user_vals = [user_metrics[m] / population_mean[m] * 100 for m in metrics]
+    
+    fig = go.Figure(data=[
+        go.Bar(name='You', x=metrics, y=user_vals, marker_color='#1f77b4'),
+        go.Bar(name='Population Avg', x=metrics, y=[100, 100, 100], marker_color='#d62728')
+    ])
+    fig.update_layout(barmode='group', title="Performance vs Population Distribution", height=350,
+                     yaxis_title="Relative Performance (%)", margin=dict(l=10, r=10, t=40, b=10))
+    return fig
 
-# ============ UI Layout ==============
-with st.expander(T('kyc_header'), expanded=True):
+
+
+# ===== STREAMLIT UI =====
+st.set_page_config(page_title="💳 Financial Passport - Credit Rating DaaS Bangladesh", layout="wide")
+st.title("💳 Financial Passport - Comprehensive Credit Rating Report")
+st.markdown("""**Advanced Credit Assessment System for Bangladesh Mobile-First Population**  
+Comprehensive credit scoring based on MFS transaction behavior, alternative data, and financial indicators.""")
+
+with st.sidebar:
+    st.header("DaaS Assessment Inputs")
+    phone_number = st.text_input("Mobile Number (Bangladesh)", value="01710000001", max_chars=11)
+    profile_type = st.selectbox("Profile Type",["Urban High Income","Urban Low Income","Rural"])
+
+provider = detect_provider(phone_number)
+user_kyc = kyc_info_for_number(phone_number)
+df = generate_sample_transactions(phone_number, provider, profile_type)
+
+# Calculate credit score and metrics
+credit_score = calculate_credit_score(df, user_kyc, user_kyc['Registration Year'])
+rating_tier, tier_color = get_credit_rating_tier(credit_score)
+
+with st.expander("📋 Personal Information (KYC)", expanded=True):
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Name", user_kyc['Name'])
-    col2.metric("Phone", phone_number)
-    col3.metric("Provider", provider)
-    col4.metric("Registered Since", user_kyc['Registration Date'])
-    st.info(f"{user_kyc['Address']} | {user_kyc['Profession']}")
+    with col1:
+        st.metric("Name", user_kyc['Name'])
+    with col2:
+        st.metric("Phone", phone_number)
+    with col3:
+        st.metric("Provider", provider)
+    with col4:
+        st.metric("Registered Since", user_kyc['Registration Date'])
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.write(f"**Address:** {user_kyc['Address']}")
+    with col_b:
+        st.write(f"**Profession:** {user_kyc['Profession']}")
+    if user_kyc['Other Numbers']:
+        st.info(f"Associated Numbers: {', '.join(user_kyc['Other Numbers'])}")
+
+# Credit Score Section
+st.divider()
+col1, col2, col3 = st.columns([2, 1, 1])
+with col1:
+    st.write("## Credit Score & Rating")
+with col2:
+    st.metric("Score", credit_score, delta=None)
+with col3:
+    st.markdown(f"<h3 style='text-align: center; color: {tier_color};'>{rating_tier}</h3>", unsafe_allow_html=True)
+
+# Phase 1 Visualizations
+
+# Recommendations & Percentile
+recommendations = get_score_recommendations(credit_score, df, user_kyc)
+percentile = calculate_percentile_rank(credit_score, profile_type)
+
+with st.expander("💡 Personalized Recommendations & Insights", expanded=True):
+    col_r1, col_r2 = st.columns([2, 1])
+    with col_r1:
+        if recommendations:
+            for rec in recommendations:
+                st.info(rec)
+    with col_r2:
+        st.metric("Percentile Rank", f"{percentile}th")
+        st.caption(f"You rank better than {percentile}% of users in the {profile_type} category.")
+
+# Privacy & Security Notice
+with st.expander("🔒 Privacy & Security Notice", expanded=False):
+    st.success("✅ Your data is encrypted and secure.")
+    st.info("🛡️ This is a synthetic demo for Bangladesh DaaS. In production, we follow strict data protection standards including Bangladesh Data Protection Act compliance.")
+    st.warning("⚠️ Never share your financial credentials with unauthorized parties.")
 
 st.divider()
+gauge_col, radar_col = st.columns(2)
+with gauge_col:
+    st.plotly_chart(create_credit_gauge(credit_score), use_container_width=True)
+with radar_col:
+    st.plotly_chart(create_profile_radar(df, user_kyc), use_container_width=True)
 
-colA, colB, colC = st.columns([2,1,1])
-colA.write(f"### {T('credit_score')}")
-colB.metric("Score", credit_score)
-colC.markdown(f"<h4 style='text-align:center;color:{tier_color}'>{rating_tier}</h4>", unsafe_allow_html=True)
-
-# **Improvements: Larger consistent fonts, responsive columns**
-st.plotly_chart(create_credit_gauge(credit_score), use_container_width=True)
-st.plotly_chart(create_profile_radar(df, user_kyc), use_container_width=True)
 st.plotly_chart(create_transaction_heatmap(df), use_container_width=True)
+st.divider()
+# Phase 2 Visualizations
+st.divider()
+st.subheader("📊 Advanced Analytics - Phase 2")
+
+phase2_col1, phase2_col2 = st.columns(2)
+with phase2_col1:
+    st.plotly_chart(create_risk_matrix(df, credit_score), use_container_width=True)
+with phase2_col2:
+    st.plotly_chart(create_distribution_benchmark(df, credit_score), use_container_width=True)
+
 st.plotly_chart(create_transaction_sankey(df), use_container_width=True)
-
 st.divider()
 
-# Export/print controls
-colE1, colE2, colE3 = st.columns(3)
-with colE1: create_download(df, 'credit_report.xlsx', method='excel')
-with colE2: create_download(df, 'credit_report.csv', method='csv')
-with colE3: print_button()
 
-# Recommendations, Percentile, etc.
-# ... rest of app logic unchanged, but UI labels use T()
+# Financial Metrics & Key Indicators
+with st.expander("📊 Financial Metrics & Indicators", expanded=True):
+    avg_balance = int(df['Balance'].mean())
+    total_txn = int(df['Amount'].sum())
+    monthly_spend = int(df[df['Type']!='Cash-In']['Amount'].sum() / 12)
+    avg_deposits_per_month = int(df[df['Type']=="Cash-In"].groupby(df['Date'].dt.to_period('M')).size().mean())
+    utilization = min(100, int(100 * (df[df['Type']!='Cash-In']['Amount'].sum()) / (avg_balance * 12 + 1)))
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    with m1:
+        st.metric("Avg Balance", f"৳{avg_balance:,}")
+    with m2:
+        st.metric("Total Volume", f"৳{total_txn:,}")
+    with m3:
+        st.metric("Monthly Spend", f"৳{monthly_spend:,}")
+    with m4:
+        st.metric("Utilization", f"{utilization}%")
+    with m5:
+        st.metric("Deposits/Month", avg_deposits_per_month)
+    with m6:
+        st.metric("Active Days", len(df.groupby('Date')))
+
+# Credit Score Breakdown
+with st.expander("📊 Credit Score Components (Weighted)", expanded=True):
+    c_col1, c_col2, c_col3, c_col4, c_col5 = st.columns(5)
+    payment_score = calculate_payment_history_score(df)
+    util_score = calculate_utilization_score(df)
+    length_score = calculate_length_score(user_kyc['Registration Year'])
+    mix_score = calculate_credit_mix_score(df)
+    inq_score = calculate_inquiries_score()
+    with c_col1:
+        st.progress(min(1.0, payment_score/200), text=f"Payment History (35%): {int(payment_score)}")
+    with c_col2:
+        st.progress(min(1.0, util_score/150), text=f"Credit Utilization (30%): {int(util_score)}")
+    with c_col3:
+        st.progress(min(1.0, length_score/100), text=f"Length of History (15%): {int(length_score)}")
+    with c_col4:
+        st.progress(min(1.0, mix_score/80), text=f"Credit Mix (10%): {int(mix_score)}")
+    with c_col5:
+        st.progress(min(1.0, inq_score/75), text=f"Inquiries (10%): {int(inq_score)}")
+
+# Transaction Analysis
+with st.expander("💳 Transaction Analysis", expanded=False):
+    tab1, tab2, tab3 = st.tabs(["Balance Trend", "Spend by Category", "Top Merchants"])
+    with tab1:
+        monthly_bal = df.groupby(df['Date'].dt.to_period('M'))['Balance'].mean().reset_index()
+        trend = go.Figure()
+        trend.add_trace(go.Scatter(x=monthly_bal['Date'].astype(str), y=monthly_bal['Balance'], mode='lines+markers', name='Avg Balance', line=dict(color='#1064ea', width=3), marker=dict(size=8)))
+        trend.update_layout(margin=dict(t=20, b=15, l=0, r=0), xaxis_title="Month", yaxis_title="Balance", height=340)
+        st.plotly_chart(trend, use_container_width=True)
+    with tab2:
+        cat_sums = df[df.Type!='Cash-In'].groupby('Type')['Amount'].sum().sort_values(ascending=False)
+        piefig = go.Figure()
+        piefig.add_trace(go.Pie(labels=cat_sums.index, values=cat_sums.values, hole=0.42))
+        piefig.update_layout(margin=dict(l=5, r=5, t=10, b=5), height=340)
+        st.plotly_chart(piefig, use_container_width=True)
+    with tab3:
+        top_merchants = df['Merchant'].value_counts().head(8)
+        barfig = go.Figure()
+        barfig.add_trace(go.Bar(x=top_merchants.values, y=top_merchants.index, orientation='h', marker=dict(color='#a6d8f8')))
+        barfig.update_layout(margin=dict(l=10, r=10, t=30, b=10), height=300)
+        st.plotly_chart(barfig, use_container_width=True)
+
+# Public Records Section
+with st.expander("⚠️ Public Records & Risk Indicators", expanded=False):
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        st.metric("Defaults on Record", "0")
+    with col_p2:
+        st.metric("Collections", "None")
+    with col_p3:
+        st.metric("Delinquency Rate", "0%")
+    st.success("No negative public records detected for this profile.")
+
+# Transaction History
+with st.expander("📋 Complete Transaction History", expanded=False):
+    st.dataframe(df.sort_values('Date', ascending=False).reset_index(drop=True), use_container_width=True, height=420)
 
 st.divider()
-st.caption(f"Assessment for {phone_number} ({provider}) - Profile: {profile_type}. Data is synthetic for DaaS demo purposes.")
-
-# Security notice
-with st.expander(T('security_notice')):
-    st.success(T('security_text'))
-
-# QUICK DEPLOY NOTES:
-# - Replace unchanged logic and helper functions with the improved ones as per your business requirements.
-# - Add large comments next to improvements for maintainability.
-# - Test in repo (Streamlit’s live reload will show all changes instantly).
-
+st.caption(f"Assessment for {phone_number} ({provider}) - Profile: {profile_type}. Data is synthetic for DaaS demo purposes. All metrics derived from mobile transaction patterns and alternative data sources.")
